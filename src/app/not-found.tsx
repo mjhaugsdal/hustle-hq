@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound() { return <main id="main-content" className="standalone-state"><div className="eyebrow">404 · A ROAD LESS TRAVELED</div><h1>This idea isn’t here.</h1><p>It may have been removed, or you may not have access. Your next possibility is still waiting.</p><Link href="/discover" className="button button-primary">Back to your ideas</Link></main>; }
