@@ -14,10 +14,145 @@ export default async function IdeaDetail({ params, searchParams }: SearchProps &
   const [{ id }, data, query] = await Promise.all([params, getWorkspaceData(), searchParams]);
   const idea = data.ideas.find((i) => i.id === id);
   if (!idea) notFound();
-  const path = `/ideas/${idea.id}`, score = overallScore(idea.idea_scores);
+  const path = `/ideas/${idea.id}`;
+  const score = overallScore(idea.idea_scores);
   const people = [...new Set([data.user.id, ...idea.idea_scores.map((s) => s.scored_by)])];
-  return <><Feedback params={query} /><Link className="back-link" href="/discover"><ArrowLeft size={15} /> All ideas</Link><header className="detail-heading"><div><div className="badge-row"><Badge className={`status-${idea.status}`}>{humanize(idea.status)}</Badge><span className="muted">{idea.category || "Uncategorized"}</span></div><h1>{idea.title}</h1><p>{idea.summary || "An idea worth exploring. Start by describing the opportunity below."}</p></div><div className="button-row"><form action={toggleShortlist}><HiddenFields id={id} returnTo={path} /><SubmitButton variant="outline"><Bookmark size={16} fill={idea.is_shortlisted ? "currentColor" : "none"} />{idea.is_shortlisted ? "Shortlisted" : "Shortlist"}</SubmitButton></form>{idea.status !== "archived" && <form action={archiveIdea}><HiddenFields id={id} returnTo={path} /><SubmitButton variant="ghost"><Archive size={16} /> Archive</SubmitButton></form>}</div></header><div className="detail-stats"><div><span>Overall idea score</span><strong>{score === null ? "Not scored" : `${score.toFixed(1)} / 5`}</strong><small>Partial: {new Set(idea.idea_scores.map((s) => s.criterion)).size}/6 criteria</small></div><div><span>Evidence confidence</span><strong>{evidenceConfidence(idea.research_sources)}</strong><small>Independent from idea scores</small></div><div><span>Your next best step</span><p>{nextAction(idea)}</p></div></div><nav className="anchor-tabs" aria-label="Idea sections">{["Overview", "Research", "Scoring", "Experiments", "History"].map((s) => <a href={`#${s.toLowerCase()}`} key={s}>{s}</a>)}</nav><section id="overview" className="detail-section"><SectionHeading title="The opportunity" description="Shape the idea without overthinking the first draft." /><div className="content-panel"><form action={updateIdea} className="stack-form"><HiddenFields id={id} returnTo={path} /><Field label="Idea title" name="title" value={idea.title} required maxLength={200} /><TextField label="Summary" name="summary" value={idea.summary} maxLength={4000} placeholder="The idea in a sentence or two." /><div className="form-grid"><TextField label="Problem" name="problem" value={idea.problem} /><TextField label="Target customer" name="target_customer" value={idea.target_customer} maxLength={2000} /><TextField label="Solution" name="solution" value={idea.solution} /><TextField label="Revenue model" name="revenue_model" value={idea.revenue_model} maxLength={2000} /><Field label="Category" name="category" value={idea.category} maxLength={100} /><SelectField label="Status" name="status" options={statuses} value={idea.status} /></div><div className="form-grid three"><Field label="Startup cost" name="startup_cost" value={idea.startup_cost} type="number" min={0} max={9999999999.99} step="0.01" /><Field label="Currency code" name="currency_code" value={idea.currency_code} placeholder="USD" maxLength={3} /><Field label="Weekly hours" name="weekly_hours" value={idea.weekly_hours} type="number" min={0} max={9999.99} step="0.01" /></div><div className="form-footer"><span>Last updated {dateLabel(idea.updated_at)}</span><SubmitButton>Save idea</SubmitButton></div></form></div></section><section id="research" className="detail-section"><SectionHeading title="Research & evidence" count={idea.research_sources.length} description="Keep evidence, assumptions, and conclusions distinct." /><div className="record-list">{idea.research_sources.map((s) => <SourceCard key={s.id} source={s} ideaId={id} returnTo={path} />)}</div><details className="content-panel add-disclosure"><summary><Plus size={17} /> Add a research source</summary><SourceForm ideaId={id} returnTo={path} /></details></section><section id="scoring" className="detail-section"><SectionHeading title="Independent scorecards" description="Score 1 (weak) to 5 (strong). Each person keeps their own scores and rationale. Higher cost scores mean lower startup costs." /><div className="notice-panel">The overall score averages people within each criterion, then averages scored criteria. Missing criteria are not zeroes. Evidence confidence is tracked separately.</div>{people.map((person) => <div className="content-panel scorecard" key={person}><h3>{personLabel(person, data.user.id)}<span className="count">{idea.idea_scores.filter((s) => s.scored_by === person).length}/6</span></h3>{criteria.map((criterion) => {
-    const entry = idea.idea_scores.find((s) => s.scored_by === person && s.criterion === criterion);
-    return person === data.user.id ? <form action={saveScore} className="criterion-form" key={criterion}><HiddenFields ideaId={id} returnTo={path} /><input type="hidden" name="criterion" value={criterion} /><div className="criterion-controls"><label>{criterionLabels[criterion]}<select name="score" defaultValue={entry?.score ?? ""} required aria-label={`${criterionLabels[criterion]} score`}><option value="" disabled>Not scored</option>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} / 5</option>)}</select></label><SubmitButton size="sm" variant="outline">Save score</SubmitButton></div><TextField label="Rationale" name="rationale" value={entry?.rationale} maxLength={4000} placeholder="Why this score? Cite the evidence or acknowledge the assumption." /></form> : <div className="readonly-score" key={criterion}><strong>{criterionLabels[criterion]} <span>{entry ? `${entry.score}/5` : "Not scored"}</span></strong><p>{entry?.rationale || "No rationale recorded."}</p></div>;
-  })}</div>)}</section><section id="experiments" className="detail-section"><SectionHeading title="Small bets, real learning" count={idea.experiments.length} description="Test the riskiest assumption before you make a big commitment." /><div className="record-list">{idea.experiments.map((e) => <ExperimentCard key={e.id} experiment={e} ideaId={id} returnTo={path} />)}</div><details className="content-panel add-disclosure"><summary><Plus size={17} /> Plan an experiment</summary><ExperimentForm ideaId={id} returnTo={path} /></details></section><section id="history" className="detail-section"><SectionHeading title="Notes & decision history" description="Keep the context, not just the conclusion. Decisions are saved here with your reasoning." /><div className="form-grid"><div className="content-panel"><h3>Leave a note</h3><form action={addNote} className="stack-form"><HiddenFields ideaId={id} returnTo={path} /><TextField label="Note" name="body" required maxLength={10000} placeholder="A question, observation, or something worth remembering…" /><SubmitButton>Add note</SubmitButton></form></div><div className="content-panel"><h3>Make a considered decision</h3><form action={recordDecision} className="stack-form"><HiddenFields ideaId={id} returnTo={path} /><SelectField label="Decision" name="decision" options={["investigate", "pursue", "archive"]} /><TextField label="Reasoning" name="reason" required placeholder="What evidence supports this decision? What would change your mind?" /><SubmitButton>Record decision</SubmitButton></form></div></div><div className="record-list notes-list">{idea.idea_notes.length ? [...idea.idea_notes].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((note) => <article className="record-card" key={note.id}><div className="record-top"><span className="record-meta">{personLabel(note.author_id, data.user.id)} · {dateLabel(note.created_at)}</span><form action={deleteNote}><HiddenFields ideaId={id} id={note.id} returnTo={path} /><SubmitButton size="icon" variant="ghost" aria-label="Delete note"><Trash2 size={15} /></SubmitButton></form></div><p className="preserve-lines">{note.body}</p></article>) : <EmptyState title="The story starts here." description="Notes and reasoned decisions will build a shared memory for this idea." />}</div></section></>;
+
+  return (
+    <>
+      <Feedback params={query} />
+      <Link className="back-link" href="/discover"><ArrowLeft size={15} /> All ideas</Link>
+      <header className="detail-heading">
+        <div>
+          <div className="badge-row"><Badge className={`status-${idea.status}`}>{humanize(idea.status)}</Badge><span className="muted">{idea.category || "Uncategorized"}</span></div>
+          <h1>{idea.title}</h1>
+          <p>{idea.summary || "An idea worth exploring. Start by describing the opportunity below."}</p>
+        </div>
+        <div className="button-row">
+          <form action={toggleShortlist}>
+            <HiddenFields id={id} returnTo={path} />
+            <SubmitButton variant="outline"><Bookmark size={16} fill={idea.is_shortlisted ? "currentColor" : "none"} />{idea.is_shortlisted ? "Shortlisted" : "Shortlist"}</SubmitButton>
+          </form>
+          {idea.status !== "archived" && (
+            <form action={archiveIdea}><HiddenFields id={id} returnTo={path} /><SubmitButton variant="ghost"><Archive size={16} /> Archive</SubmitButton></form>
+          )}
+        </div>
+      </header>
+      <div className="detail-stats">
+        <div><span>Overall idea score</span><strong>{score === null ? "Not scored" : `${score.toFixed(1)} / 5`}</strong><small>Coverage: {new Set(idea.idea_scores.map((s) => s.criterion)).size}/6 criteria</small></div>
+        <div><span>Evidence confidence</span><strong>{evidenceConfidence(idea.research_sources)}</strong><small>Independent from idea scores</small></div>
+        <div><span>Your next best step</span><p>{nextAction(idea)}</p></div>
+      </div>
+      <nav className="anchor-tabs" aria-label="Idea sections">
+        {["Overview", "Research", "Scoring", "Experiments", "History"].map((s) => <a href={`#${s.toLowerCase()}`} key={s}>{s}</a>)}
+      </nav>
+
+      <section id="overview" className="detail-section">
+        <SectionHeading title="The opportunity" description="Shape the idea without overthinking the first draft." />
+        <div className="content-panel">
+          <form action={updateIdea} className="stack-form">
+            <HiddenFields id={id} returnTo={path} />
+            <Field label="Idea title" name="title" value={idea.title} required maxLength={200} />
+            <TextField label="Summary" name="summary" value={idea.summary} maxLength={4000} placeholder="The idea in a sentence or two." />
+            <div className="form-grid">
+              <TextField label="Problem" name="problem" value={idea.problem} />
+              <TextField label="Target customer" name="target_customer" value={idea.target_customer} maxLength={2000} />
+              <TextField label="Solution" name="solution" value={idea.solution} />
+              <TextField label="Revenue model" name="revenue_model" value={idea.revenue_model} maxLength={2000} />
+              <Field label="Category" name="category" value={idea.category} maxLength={100} />
+              <SelectField label="Status" name="status" options={statuses} value={idea.status} />
+            </div>
+            <div className="form-grid three">
+              <Field label="Startup cost" name="startup_cost" value={idea.startup_cost} type="number" min={0} max={9999999999.99} step="0.01" />
+              <Field label="Currency code (needed with cost)" name="currency_code" value={idea.currency_code} placeholder="USD" maxLength={3} />
+              <Field label="Weekly hours" name="weekly_hours" value={idea.weekly_hours} type="number" min={0} max={168} step="0.01" />
+            </div>
+            <div className="form-footer"><span>Last updated {dateLabel(idea.updated_at)}</span><SubmitButton>Save idea</SubmitButton></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="research" className="detail-section">
+        <SectionHeading title="Research & evidence" count={idea.research_sources.length} description="Keep evidence, assumptions, and conclusions distinct." />
+        <div className="record-list">{idea.research_sources.map((s) => <SourceCard key={s.id} source={s} ideaId={id} returnTo={path} userId={data.user.id} />)}</div>
+        <details className="content-panel add-disclosure"><summary><Plus size={17} /> Add a research source</summary><SourceForm ideaId={id} returnTo={path} /></details>
+      </section>
+
+      <section id="scoring" className="detail-section">
+        <SectionHeading title="Independent scorecards" description="Score 1 (weak) to 5 (strong). Each person keeps their own scores and rationale. Higher cost scores mean lower startup costs." />
+        <div className="notice-panel">The overall score averages people within each criterion, then averages scored criteria. Missing criteria are not zeroes. Evidence confidence is tracked separately.</div>
+        {people.map((person) => (
+          <div className="content-panel scorecard" key={person}>
+            <h3>{personLabel(person, data.user.id)}<span className="count">{idea.idea_scores.filter((s) => s.scored_by === person).length}/6</span></h3>
+            {criteria.map((criterion) => {
+              const entry = idea.idea_scores.find((s) => s.scored_by === person && s.criterion === criterion);
+              if (person !== data.user.id) {
+                return <div className="readonly-score" key={criterion}><strong>{criterionLabels[criterion]} <span>{entry ? `${entry.score}/5` : "Not scored"}</span></strong><p>{entry?.rationale || "No rationale recorded."}</p></div>;
+              }
+              return (
+                <form action={saveScore} className="criterion-form" key={criterion}>
+                  <HiddenFields ideaId={id} returnTo={path} />
+                  <input type="hidden" name="criterion" value={criterion} />
+                  <div className="criterion-controls">
+                    <label>{criterionLabels[criterion]}
+                      <select name="score" defaultValue={entry?.score ?? ""} required aria-label={`${criterionLabels[criterion]} score`}>
+                        <option value="" disabled>Not scored</option>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} / 5</option>)}
+                      </select>
+                    </label>
+                    <SubmitButton size="sm" variant="outline">Save score</SubmitButton>
+                  </div>
+                  <TextField label="Rationale" name="rationale" value={entry?.rationale} maxLength={4000} placeholder="Why this score? Cite the evidence or acknowledge the assumption." />
+                </form>
+              );
+            })}
+          </div>
+        ))}
+      </section>
+
+      <section id="experiments" className="detail-section">
+        <SectionHeading title="Small bets, real learning" count={idea.experiments.length} description="Test the riskiest assumption before you make a big commitment." />
+        <div className="record-list">{idea.experiments.map((e) => <ExperimentCard key={e.id} experiment={e} ideaId={id} returnTo={path} />)}</div>
+        <details className="content-panel add-disclosure"><summary><Plus size={17} /> Plan an experiment</summary><ExperimentForm ideaId={id} returnTo={path} /></details>
+      </section>
+
+      <section id="history" className="detail-section">
+        <SectionHeading title="Notes & decision history" description="Keep the context, not just the conclusion. Decisions are saved here with your reasoning." />
+        <div className="form-grid">
+          <div className="content-panel">
+            <h3>Leave a note</h3>
+            <form action={addNote} className="stack-form">
+              <HiddenFields ideaId={id} returnTo={path} />
+              <TextField label="Note" name="body" required maxLength={10000} placeholder="A question, observation, or something worth remembering…" />
+              <SubmitButton>Add note</SubmitButton>
+            </form>
+          </div>
+          <div className="content-panel">
+            <h3>Make a considered decision</h3>
+            <form action={recordDecision} className="stack-form">
+              <HiddenFields ideaId={id} returnTo={path} />
+              <SelectField label="Decision" name="decision" options={["investigate", "pursue", "archive"]} />
+              <TextField label="Reasoning" name="reason" required maxLength={5000} placeholder="What evidence supports this decision? What would change your mind?" />
+              <SubmitButton>Record decision</SubmitButton>
+            </form>
+          </div>
+        </div>
+        <div className="record-list notes-list">
+          {idea.idea_notes.length
+            ? [...idea.idea_notes].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((note) => (
+              <article className="record-card" key={note.id}>
+                <div className="record-top">
+                  <span className="record-meta">{personLabel(note.author_id, data.user.id)} · {dateLabel(note.created_at)}</span>
+                  <form action={deleteNote}>
+                    <HiddenFields ideaId={id} id={note.id} returnTo={path} />
+                    <SubmitButton size="icon" variant="ghost" aria-label="Delete note"><Trash2 size={15} /></SubmitButton>
+                  </form>
+                </div>
+                <p className="preserve-lines">{note.body}</p>
+              </article>
+            ))
+            : <EmptyState title="The story starts here." description="Notes and reasoned decisions will build a shared memory for this idea." />}
+        </div>
+      </section>
+    </>
+  );
 }

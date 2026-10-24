@@ -75,15 +75,6 @@ const experimentFields = ideaIdSchema.extend({
   completed_at: optionalDate,
 });
 function checkExperiment(value: z.infer<typeof experimentFields>, ctx: z.RefinementCtx) {
-  if (value.outcome === "pending" && value.completed_at) {
-    ctx.addIssue({ code: "custom", path: ["completed_at"], message: "Choose an outcome before setting a completion date." });
-  }
-  if (value.outcome !== "pending" && !value.completed_at) {
-    ctx.addIssue({ code: "custom", path: ["completed_at"], message: "Set a completion date for a completed experiment." });
-  }
-  if (value.completed_at && !value.started_at) {
-    ctx.addIssue({ code: "custom", path: ["started_at"], message: "Set a start date before a completion date." });
-  }
   if (value.started_at && value.completed_at && value.completed_at < value.started_at) {
     ctx.addIssue({ code: "custom", path: ["completed_at"], message: "Completion cannot be before the start date." });
   }

@@ -114,12 +114,25 @@ test("Supabase access control and integrity (local integration)", { skip }, asyn
       ...Object.fromEntries(Object.entries(rows).map(([table, row]) => [table, `?id=eq.${row.id}`])),
     };
 
+    await t.test("private workspaces require administrator-created accounts", async () => {
+      const signup = await createClient(url!, anonKey!, options).auth.signUp({
+        email: `access-${runId}-blocked@example.test`,
+        password: `Test-${randomUUID()}-Aa9!`,
+      });
+      if (signup.data.user) users.push({ id: signup.data.user.id, token: "" });
+      assert.ok(signup.error, "Public signup must be disabled for the invite-only MVP");
+    });
+
     await t.test("every table is member-readable and hidden from outsiders and anonymous JWTs", async () => {
       for (const table of tables) {
         assert.ok(success(await rest(colleague.token, table, "GET", undefined, keys[table])).length > 0, table);
         denied(await rest(outsider.token, table, "GET", undefined, keys[table]));
         denied(await rest(null, table, "GET", undefined, keys[table]));
       }
+      const membership = success(await rest(colleague.token, "workspace_members", "GET", undefined,
+        `?workspace_id=eq.${workspace}&user_id=eq.${colleague.id}`))[0];
+      assert.ok(Number.isFinite(Date.parse(membership.joined_at as string)));
+      assert.equal(Object.hasOwn(membership, "created_at"), false);
       const nested = success(await rest(member.token, "ideas", "GET", undefined,
         `?id=eq.${ideaId}&select=*,research_sources(*),idea_scores(*),experiments(*),idea_notes(*)`))[0];
       for (const table of children) {
@@ -217,7 +230,7 @@ test("Supabase access control and integrity (local integration)", { skip }, asyn
         ["ideas", { status: "pursue" }], ["ideas", { startup_cost: -1, currency_code: "USD" }],
         ["ideas", { startup_cost: 1, currency_code: null }], ["ideas", { currency_code: "usd" }],
         ["ideas", { currency_code: "US" }], ["ideas", { weekly_hours: -1 }],
-        ["ideas", { weekly_hours: 10000 }],
+        ["ideas", { weekly_hours: 169 }],
         ["ideas", { startup_cost: 10000000000, currency_code: "USD" }],
         ["ideas", { is_shortlisted: null }],
         ["research_sources", { url: "javascript:alert(1)" }],
@@ -228,7 +241,6 @@ test("Supabase access control and integrity (local integration)", { skip }, asyn
         ["idea_scores", { score: 6 }], ["idea_scores", { score: 1.5 }],
         ["experiments", { outcome: "passed" }],
         ["experiments", { hypothesis: " " }],
-        ["experiments", { completed_at: "2026-01-01T00:00:00Z" }],
         ["experiments", { outcome: "successful", started_at: "2026-02-01T00:00:00Z", completed_at: "2026-01-01T00:00:00Z", result: "Yes" }],
         ["experiments", { outcome: "successful", started_at: "2026-01-01T00:00:00Z", completed_at: "2026-02-01T00:00:00Z", result: " " }],
         ["idea_notes", { body: " " }], ["idea_notes", { body: "x".repeat(10001) }],
@@ -239,15 +251,20 @@ test("Supabase access control and integrity (local integration)", { skip }, asyn
         rejected(await rest(member.token, table, "POST", { ...payload, ...changes }));
       }
       const limits = success(await rest(member.token, "ideas", "PATCH", {
-        startup_cost: 9999999999.99, currency_code: "USD", weekly_hours: 9999.99,
+        startup_cost: 9999999999.99, currency_code: "USD", weekly_hours: 168,
       }, keys.ideas))[0];
       assert.equal(limits.startup_cost, 9999999999.99);
-      assert.equal(limits.weekly_hours, 9999.99);
+      assert.equal(limits.weekly_hours, 168);
       const undated = success(await rest(member.token, "experiments", "PATCH", {
         outcome: "successful", result: "Five customers signed up",
       }, keys.experiments))[0];
       assert.equal(undated.started_at, null);
       assert.equal(undated.completed_at, null);
+      const unknownStart = success(await rest(member.token, "experiments", "PATCH", {
+        completed_at: "2026-01-02T00:00:00Z",
+      }, keys.experiments))[0];
+      assert.equal(unknownStart.started_at, null);
+      assert.ok(unknownStart.completed_at);
       const valid = success(await rest(member.token, "experiments", "PATCH", {
         outcome: "successful", started_at: "2026-01-01T00:00:00Z",
         completed_at: "2026-01-02T00:00:00Z", result: "Five customers signed up",

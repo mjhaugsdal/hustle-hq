@@ -8,7 +8,7 @@ import { SubmitButton } from "@/components/submit-button";
 
 const links = [
   { href: "/discover", label: "Discover", icon: Compass },
-  { href: "/research", label: "Research library", icon: BookOpen },
+  { href: "/research", label: "Research Lab", icon: BookOpen },
   { href: "/compare", label: "Compare ideas", icon: Columns3 },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },
   { href: "/activity", label: "Activity", icon: Activity },

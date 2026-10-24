@@ -36,11 +36,11 @@ enabled = false
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
 jwt_expiry = 3600
-enable_signup = true
+enable_signup = false
 
 [auth.email]
+# This enables email/password login; global auth.enable_signup blocks public signup.
 enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false

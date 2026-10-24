@@ -69,12 +69,13 @@ test("experiment dates are valid and ordered; completed outcomes need results", 
   assert.equal(experimentSchema.safeParse(base).success, true);
   assert.equal(experimentSchema.safeParse({ ...base, started_at: "2026-02-30" }).success, false);
   assert.equal(experimentSchema.safeParse({ ...base, started_at: "2026-10-02", completed_at: "2026-10-01" }).success, false);
-  assert.equal(experimentSchema.safeParse({ ...base, completed_at: "2026-10-01" }).success, false);
-  assert.equal(experimentSchema.safeParse({ ...base, started_at: "2026-10-01", completed_at: "2026-10-02" }).success, false);
+  assert.equal(experimentSchema.safeParse({ ...base, completed_at: "2026-10-01" }).success, true);
+  assert.equal(experimentSchema.safeParse({ ...base, started_at: "2026-10-01", completed_at: "2026-10-02" }).success, true);
   for (const outcome of ["successful", "unsuccessful", "inconclusive"]) {
     assert.equal(experimentSchema.safeParse({ ...base, outcome, result: " " }).success, false);
-    assert.equal(experimentSchema.safeParse({ ...base, outcome, result: "Three paid customers" }).success, false);
-    assert.equal(experimentSchema.safeParse({ ...base, outcome, result: "Three paid customers", completed_at: "2026-10-02" }).success, false);
+    assert.equal(experimentSchema.safeParse({ ...base, outcome, result: "Three paid customers" }).success, true);
+    assert.equal(experimentSchema.safeParse({ ...base, outcome, result: "Three paid customers", started_at: "2026-10-01" }).success, true);
+    assert.equal(experimentSchema.safeParse({ ...base, outcome, result: "Three paid customers", completed_at: "2026-10-02" }).success, true);
     assert.equal(experimentSchema.safeParse({ ...base, outcome, result: "Three paid customers",
       started_at: "2026-10-01", completed_at: "2026-10-02" }).success, true);
   }

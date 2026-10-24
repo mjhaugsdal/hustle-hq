@@ -14,7 +14,7 @@ create table public.workspace_members (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   role text not null default 'member' check (role in ('owner', 'member')),
-  created_at timestamptz not null default now(),
+  joined_at timestamptz not null default now(),
   primary key (workspace_id, user_id)
 );
 create index workspace_members_user_id_idx on public.workspace_members(user_id, workspace_id);
@@ -34,7 +34,7 @@ create table public.ideas (
     check (status in ('inbox', 'researching', 'validating', 'active', 'rejected', 'archived')),
   startup_cost numeric(12,2) check (startup_cost >= 0 and startup_cost < 'Infinity'::numeric),
   currency_code text check (currency_code ~ '^[A-Z]{3}$'),
-  weekly_hours numeric(6,2) check (weekly_hours >= 0 and weekly_hours < 'Infinity'::numeric),
+  weekly_hours numeric(6,2) check (weekly_hours between 0 and 168),
   is_shortlisted boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -44,6 +44,7 @@ create table public.ideas (
 );
 create index ideas_workspace_status_idx on public.ideas(workspace_id, status);
 create index ideas_workspace_updated_at_idx on public.ideas(workspace_id, updated_at desc);
+create index ideas_created_by_idx on public.ideas(created_by);
 
 create table public.research_sources (
   id uuid primary key default gen_random_uuid(),
@@ -59,6 +60,7 @@ create table public.research_sources (
   retrieved_at timestamptz
 );
 create index research_sources_idea_id_idx on public.research_sources(idea_id);
+create index research_sources_created_by_idx on public.research_sources(created_by);
 
 create table public.idea_scores (
   id uuid primary key default gen_random_uuid(),
@@ -70,6 +72,7 @@ create table public.idea_scores (
   updated_at timestamptz not null default now(),
   unique (idea_id, criterion, scored_by)
 );
+create index idea_scores_scored_by_idx on public.idea_scores(scored_by);
 
 create table public.experiments (
   id uuid primary key default gen_random_uuid(),
@@ -84,10 +87,11 @@ create table public.experiments (
   completed_at timestamptz,
   created_by uuid not null default auth.uid() references auth.users(id) on delete restrict,
   created_at timestamptz not null default now(),
-  check (completed_at is null or (started_at is not null and completed_at >= started_at)),
+  check (started_at is null or completed_at is null or completed_at >= started_at),
   check (outcome = 'pending' or nullif(btrim(result), '') is not null)
 );
 create index experiments_idea_id_idx on public.experiments(idea_id);
+create index experiments_created_by_idx on public.experiments(created_by);
 
 create table public.idea_notes (
   id uuid primary key default gen_random_uuid(),
@@ -97,6 +101,7 @@ create table public.idea_notes (
   created_at timestamptz not null default now()
 );
 create index idea_notes_idea_id_created_at_idx on public.idea_notes(idea_id, created_at);
+create index idea_notes_author_id_idx on public.idea_notes(author_id);
 
 -- Non-exposed, narrowly scoped helpers avoid recursive membership RLS.
 create function private.is_workspace_member(p_workspace_id uuid)
@@ -185,8 +190,6 @@ for each row execute function private.touch_updated_at();
 create trigger idea_scores_updated_at before insert or update on public.idea_scores
 for each row execute function private.touch_updated_at();
 create trigger workspaces_created_at before insert on public.workspaces
-for each row execute function private.stamp_created_at();
-create trigger workspace_members_created_at before insert on public.workspace_members
 for each row execute function private.stamp_created_at();
 create trigger ideas_created_at before insert on public.ideas
 for each row execute function private.stamp_created_at();

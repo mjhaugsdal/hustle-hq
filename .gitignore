@@ -41,8 +41,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /AGENTS.md
-/.browser-profile/
-/.ui-*.png
+/.browser-profile*/
+/.ui-*
 
 # Local Supabase state
 /supabase/.temp/
